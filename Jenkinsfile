@@ -1,11 +1,11 @@
 pipeline {
     agent any
     environment {
-        DOCKER_IMAGE = "your-dockerhub-username/python-app:latest"
+        DOCKER_IMAGE = "anithavalluri/python-app:latest"
     }
     stages {
         stage('Checkout') {
-            steps { git 'https://github.com/your-repo/python-app.git' }
+            steps { git 'https://github.com/anithavalluri02/python1.git' }
         }
         stage('Install Dependencies') {
             steps { sh 'pip install -r src/requirements.txt' }
@@ -18,7 +18,7 @@ pipeline {
         }
         stage('Push Docker Image') {
             steps {
-                withDockerRegistry([credentialsId: 'dockerhub-creds', url: '']) {
+                withDockerRegistry([credentialsId: 'dockerhub-cred', url: '']) {
                     sh "docker push $DOCKER_IMAGE"
                 }
             }
