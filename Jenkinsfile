@@ -3,10 +3,11 @@ pipeline {
     environment {
         DOCKER_IMAGE = "anithavalluri/python-app:latest"
     }
-    stages {
-        stage('Checkout') {
-            steps { git 'https://github.com/anithavalluri02/python1.git' }
-        }
+    stage('Checkout') {
+    steps {
+        git branch: 'main', url: 'https://github.com/anithavalluri02/python1.git'
+    }
+
         stage('Install Dependencies') {
             steps { sh 'pip install -r src/requirements.txt' }
         }
