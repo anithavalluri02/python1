@@ -1,13 +1,9 @@
-# 🌟 __init__.py - Initializes the Flask application
-
 from flask import Flask
-from app.routes import register_routes
-from app.config import Config
+app = Flask(__name__)
 
-def create_app():
-    """Factory pattern to create and configure the Flask app."""
-    app = Flask(__name__)
-    app.config.from_object(Config)
-    register_routes(app)
-    return app
+@app.route('/')
+def home():
+    return "Hello from Python app!"
 
+if __name__ == "__main__":
+    app.run(host='0.0.0.0', port=5000)
