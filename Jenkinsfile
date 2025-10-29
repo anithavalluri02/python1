@@ -48,7 +48,6 @@ pipeline {
             }
         }
 
-        // 🔹 New stage added below
         stage('Create Kubernetes Container') {
             steps {
                 echo 'Creating container in Kubernetes...'
@@ -56,7 +55,8 @@ pipeline {
                     kubectl run python-app \
                         --image=${DOCKER_IMAGE} \
                         --restart=Always \
-                        --port=5000 || echo "Container may already exist, continuing..."
+                        --port=5000 \
+                        --labels=app=python-app || echo "Container may already exist, continuing..."
                 '''
             }
         }
@@ -65,6 +65,30 @@ pipeline {
             steps {
                 echo 'Deploying to Kubernetes...'
                 sh 'kubectl apply -f k8s/'
+            }
+        }
+
+        // 🔹 New stage to expose the app via NodePort
+        stage('Expose Service in Kubernetes') {
+            steps {
+                echo 'Creating NodePort service for the app...'
+                sh '''
+                    kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Service
+metadata:
+  name: python-app-service
+spec:
+  type: NodePort
+  selector:
+    app: python-app
+  ports:
+    - protocol: TCP
+      port: 5000
+      targetPort: 5000
+      nodePort: 30500
+EOF
+                '''
             }
         }
     }
