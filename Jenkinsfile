@@ -48,6 +48,19 @@ pipeline {
             }
         }
 
+        // 🔹 New stage added below
+        stage('Create Kubernetes Container') {
+            steps {
+                echo 'Creating container in Kubernetes...'
+                sh '''
+                    kubectl run python-app \
+                        --image=${DOCKER_IMAGE} \
+                        --restart=Always \
+                        --port=5000 || echo "Container may already exist, continuing..."
+                '''
+            }
+        }
+
         stage('Deploy to Kubernetes') {
             steps {
                 echo 'Deploying to Kubernetes...'
