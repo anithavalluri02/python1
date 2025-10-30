@@ -3,13 +3,17 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = "anithavalluri/python-app:latest"
+        GIT_CREDENTIALS = "github-credentials"     // Jenkins credentials ID for GitHub
+        DOCKER_CREDENTIALS = "anithavalluri-docker" // Jenkins credentials ID for Docker Hub
+        KUBECONFIG_CREDENTIALS = "aws-creds"   // Jenkins credentials ID for kubeconfig (optional)
     }
 
     stages {
         stage('Checkout') {
             steps {
                 echo 'Checking out code from GitHub...'
-                git branch: 'main', url: 'https://github.com/anithavalluri02/python1.git'
+                // 🔹 Secure Git checkout with credentials
+                git branch: 'main', url: 'https://github.com/anithavalluri02/python1.git', credentialsId: "${GIT_CREDENTIALS}"
             }
         }
 
@@ -42,7 +46,8 @@ pipeline {
         stage('Push Docker Image') {
             steps {
                 echo 'Pushing image to Docker Hub...'
-                withDockerRegistry([credentialsId: 'anithavalluri-docker', url: '']) {
+                // 🔹 Secure Docker login using Jenkins credentials
+                withDockerRegistry([credentialsId: "${DOCKER_CREDENTIALS}", url: 'https://index.docker.io/v1/']) {
                     sh "docker push ${DOCKER_IMAGE}"
                 }
             }
@@ -51,29 +56,34 @@ pipeline {
         stage('Create Kubernetes Container') {
             steps {
                 echo 'Creating container in Kubernetes...'
-                sh '''
-                    kubectl run python-app \
-                        --image=${DOCKER_IMAGE} \
-                        --restart=Always \
-                        --port=5000 \
-                        --labels=app=python-app || echo "Container may already exist, continuing..."
-                '''
+                // 🔹 Optionally use Jenkins credentials to access kubeconfig
+                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIALS}", variable: 'KUBECONFIG')]) {
+                    sh '''
+                        kubectl run python-app \
+                            --image=${DOCKER_IMAGE} \
+                            --restart=Always \
+                            --port=5000 \
+                            --labels=app=python-app || echo "Container may already exist, continuing..."
+                    '''
+                }
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
                 echo 'Deploying to Kubernetes...'
-                sh 'kubectl apply -f k8s/deployment.yaml'
+                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIALS}", variable: 'KUBECONFIG')]) {
+                    sh 'kubectl apply -f k8s/deployment.yaml'
+                }
             }
         }
 
-        // 🔹 New stage to expose the app via NodePort
         stage('Expose Service in Kubernetes') {
             steps {
                 echo 'Creating NodePort service for the app...'
-                sh '''
-                    kubectl apply -f - <<EOF
+                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIALS}", variable: 'KUBECONFIG')]) {
+                    sh '''
+                        kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Service
 metadata:
@@ -88,7 +98,8 @@ spec:
       targetPort: 5000
       nodePort: 30500
 EOF
-                '''
+                    '''
+                }
             }
         }
     }
