@@ -3,16 +3,17 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = "anithavalluri/python-app:latest"
-        GIT_CREDENTIALS = "github-credentials"     // Jenkins credentials ID for GitHub
-        DOCKER_CREDENTIALS = "anithavalluri-docker" // Jenkins credentials ID for Docker Hub
-        KUBECONFIG_CREDENTIALS = "aws-creds"   // Jenkins credentials ID for kubeconfig (optional)
+        GIT_CREDENTIALS = "github-credentials"        // GitHub credentials ID
+        DOCKER_CREDENTIALS = "anithavalluri-docker"   // Docker Hub credentials ID
+        AWS_CREDENTIALS = "aws-creds"                 // AWS credentials ID
+        AWS_REGION = "ap-south-1"
+        CLUSTER_NAME = "clus1"          // 🔹 replace with your actual EKS cluster name
     }
 
     stages {
         stage('Checkout') {
             steps {
                 echo 'Checking out code from GitHub...'
-                // 🔹 Secure Git checkout with credentials
                 git branch: 'main', url: 'https://github.com/anithavalluri02/python1.git', credentialsId: "${GIT_CREDENTIALS}"
             }
         }
@@ -46,47 +47,46 @@ pipeline {
         stage('Push Docker Image') {
             steps {
                 echo 'Pushing image to Docker Hub...'
-                // 🔹 Secure Docker login using Jenkins credentials
                 withDockerRegistry([credentialsId: "${DOCKER_CREDENTIALS}", url: 'https://index.docker.io/v1/']) {
                     sh "docker push ${DOCKER_IMAGE}"
                 }
             }
         }
 
-       stage('Create Kubernetes Container') {
-    steps {
-        echo 'Creating container in Kubernetes...'
-        withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-creds']]) {
-            sh '''
-                aws eks update-kubeconfig --region ap-south-1 --name <your-cluster-name>
-                kubectl run python-app \
-                    --image=${DOCKER_IMAGE} \
-                    --restart=Always \
-                    --port=5000 \
-                    --labels=app=python-app || echo "Container may already exist, continuing..."
-            '''
+        stage('Create Kubernetes Container') {
+            steps {
+                echo 'Creating container in Kubernetes...'
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: "${AWS_CREDENTIALS}"]]) {
+                    sh '''
+                        aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
+                        kubectl run python-app \
+                            --image=$DOCKER_IMAGE \
+                            --restart=Always \
+                            --port=5000 \
+                            --labels=app=python-app || echo "Container may already exist, continuing..."
+                    '''
+                }
+            }
         }
-    }
-}
 
-stage('Deploy to Kubernetes') {
-    steps {
-        echo 'Deploying to Kubernetes...'
-        withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-creds']]) {
-            sh '''
-                aws eks update-kubeconfig --region ap-south-1 --name <your-cluster-name>
-                kubectl apply -f k8s/deployment.yaml
-            '''
+        stage('Deploy to Kubernetes') {
+            steps {
+                echo 'Deploying to Kubernetes...'
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: "${AWS_CREDENTIALS}"]]) {
+                    sh '''
+                        aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
+                        kubectl apply -f k8s/deployment.yaml
+                    '''
+                }
+            }
         }
-    }
-}
-
 
         stage('Expose Service in Kubernetes') {
             steps {
                 echo 'Creating NodePort service for the app...'
-                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIALS}", variable: 'KUBECONFIG')]) {
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: "${AWS_CREDENTIALS}"]]) {
                     sh '''
+                        aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
                         kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Service
