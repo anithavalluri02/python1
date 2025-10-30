@@ -53,30 +53,34 @@ pipeline {
             }
         }
 
-        stage('Create Kubernetes Container') {
-            steps {
-                echo 'Creating container in Kubernetes...'
-                // 🔹 Optionally use Jenkins credentials to access kubeconfig
-                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIALS}", variable: 'KUBECONFIG')]) {
-                    sh '''
-                        kubectl run python-app \
-                            --image=${DOCKER_IMAGE} \
-                            --restart=Always \
-                            --port=5000 \
-                            --labels=app=python-app || echo "Container may already exist, continuing..."
-                    '''
-                }
-            }
+       stage('Create Kubernetes Container') {
+    steps {
+        echo 'Creating container in Kubernetes...'
+        withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-creds']]) {
+            sh '''
+                aws eks update-kubeconfig --region ap-south-1 --name <your-cluster-name>
+                kubectl run python-app \
+                    --image=${DOCKER_IMAGE} \
+                    --restart=Always \
+                    --port=5000 \
+                    --labels=app=python-app || echo "Container may already exist, continuing..."
+            '''
         }
+    }
+}
 
-        stage('Deploy to Kubernetes') {
-            steps {
-                echo 'Deploying to Kubernetes...'
-                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIALS}", variable: 'KUBECONFIG')]) {
-                    sh 'kubectl apply -f k8s/deployment.yaml'
-                }
-            }
+stage('Deploy to Kubernetes') {
+    steps {
+        echo 'Deploying to Kubernetes...'
+        withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-creds']]) {
+            sh '''
+                aws eks update-kubeconfig --region ap-south-1 --name <your-cluster-name>
+                kubectl apply -f k8s/deployment.yaml
+            '''
         }
+    }
+}
+
 
         stage('Expose Service in Kubernetes') {
             steps {
